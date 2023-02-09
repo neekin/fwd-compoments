@@ -12,6 +12,7 @@
         </button>
         <button @click="remove" type="primary"><delete-row-outlined /></button>
         <button @click="transformWorflowNodeToObj" type="primary">转换</button>
+        <button @click="transformWorflowObjToNode" type="primary">转换2</button>
       </slot>
     </div>
     <div ref="container" id="container"></div>
@@ -40,25 +41,16 @@ const props = defineProps({
     type: Number,
     default: 380,
   },
-  WorkflowEmu: {
+  workflowFormula: {
     type: String,
     default: "",
   },
 });
-const nodes = ref([
-  { id: "0", label: "Start" },
-  { id: "A", label: "A" },
-  { id: "B", label: "B" },
-  { id: "C", label: "C" },
-]);
-const edges = ref([
-  { source: "0", target: "A" },
-  { source: "0", target: "B" },
-  { source: "B", target: "C" },
-  { source: "A", target: "C" },
-]);
+const nodes = ref([{ id: "0", label: "Start" }]);
+const edges = ref([]);
 const currentNode = ref(null);
 const container = ref(null);
+const workflowFormula = ref("");
 const { width, height, readonly } = reactive(props);
 const typeDefaultUndefined = (value) => {
   return typeof value != "undefined";
@@ -434,9 +426,7 @@ const transformWorflowNodeToObj = () => {
   let data = {
     parallelNode: [],
   };
-
   let non_nodes = JSON.parse(JSON.stringify(nodes.value));
-
   const traverseNodes = () => {
     let currentArr = data.parallelNode;
     const getNodesType = () => {
@@ -472,30 +462,26 @@ const transformWorflowNodeToObj = () => {
       return node;
     };
     const IsSignNode = (id) => {
+      if (!id) {
+        return false;
+      }
       let subSources = edges.value.filter((edge) => id === edge.source);
-      let subTargets = edges.value.filter(
-        (edge) => edge.target == subSources[0]?.source
-      );
-
+      let subTargets = edges.value.filter((edge) => edge.target == id);
       return (
         (subSources.length == 1 || subSources.length == 0) &&
         (subTargets.length == 1 || subTargets.length == 0)
       );
     };
     const nextNodeIsSignNode = (id) => {
+      if (!id) {
+        [false, null];
+      }
       let sources = edges.value.filter((edge) => id === edge.source);
       let targets = edges.value.filter((edge) => id === edge.target);
       if (sources.length == 1 && (targets.length == 0 || targets.length == 1)) {
         return [IsSignNode(sources[0].target), sources[0].target];
       }
       return [false, null];
-    };
-    const getNextNode = (id) => {
-      let sources = edges.value.filter((edge) => id === edge.source);
-      if (sources.length == 1) {
-        return sources[0].target;
-      }
-      return null;
     };
     const traverseNodesByTypeA = () => {
       while (non_nodes.length) {
@@ -526,16 +512,15 @@ const transformWorflowNodeToObj = () => {
               while (nextSign) {
                 if (IsSignNode(nextNode)) {
                   node = getNode(nextNode);
-                  if (node) {
-                    curr.serialNode.push({
-                      handleNode: {
-                        nodeid: node.id,
-                        id: node.id,
-                        userIdList: getOwner(node.owners),
-                      },
-                    });
-                    [nextSign, nextNode] = nextNodeIsSignNode(node.id);
-                  }
+
+                  curr.serialNode.push({
+                    handleNode: {
+                      nodeid: node.id,
+                      id: node.id,
+                      userIdList: getOwner(node.owners),
+                    },
+                  });
+                  [nextSign, nextNode] = nextNodeIsSignNode(node.id);
                 }
               }
               currentArr.push(curr);
@@ -558,7 +543,6 @@ const transformWorflowNodeToObj = () => {
           for (let i = 0; i < sources.length; i++) {
             let source = sources[i];
             let isSignNode = IsSignNode(source.target);
-
             if (isSignNode) {
               let node = getNode(source.target);
               let curr = {};
@@ -571,87 +555,60 @@ const transformWorflowNodeToObj = () => {
                 },
               });
               let [nextSign, nextNode] = nextNodeIsSignNode(node.id);
-              while (nextSign) {
-                if (IsSignNode(nextNode)) {
-                  node = getNode(nextNode);
-                  if (node) {
-                    curr.serialNode.push({
-                      handleNode: {
-                        nodeid: node.id,
-                        id: node.id,
-                        userIdList: getOwner(node.owners),
-                      },
-                    });
-                    [nextSign, nextNode] = nextNodeIsSignNode(node.id);
-                  }
+              while (IsSignNode(nextNode)) {
+                node = getNode(nextNode);
+                if (node) {
+                  curr.serialNode.push({
+                    handleNode: {
+                      nodeid: node.id,
+                      id: node.id,
+                      userIdList: getOwner(node.owners),
+                    },
+                  });
                 }
+
+                [nextSign, nextNode] = nextNodeIsSignNode(node?.id);
               }
+              // console.log(nextNode);
+              // console.log(IsSignNode(nextNode));
+              // console.log(nextNode);
+              // while (nextSign) {
+              //   if (IsSignNode(nextNode)) {
+              //     node = getNode(nextNode);
+              //     if (node) {
+              //       curr.serialNode.push({
+              //         handleNode: {
+              //           nodeid: node.id,
+              //           id: node.id,
+              //           userIdList: getOwner(node.owners),
+              //         },
+              //       });
+              //       [nextSign, nextNode] = nextNodeIsSignNode(node.id);
+              //     }
+              //   }
+              // }
               currentArr.push(curr);
             }
           }
         }
-        // if (sources.length >= 2) {
-        //   let arr = {
-        //     parallelNode: [],
-        //   };
-        //   let ser = {
-        //     serialNode: [],
-        //   };
-        //   ser.serialNode.push({
-        //     handleNode: {
-        //       nodeid: currentNode.id,
-        //       id: currentNode.id,
-        //       userIdList: getOwner(currentNode.owners),
-        //     },
-        //   });
-        //   arr.parallelNode.push(ser);
-        //   currentArr.push(arr);
-        //   currentArr = arr.parallelNode;
-        // }
-        // if (sources.length == 1 && targets.length == 1) {
-        //   let curr = {};
-        //   curr.serialNode = [];
-        //   curr.serialNode.push({
-        //     handleNode: {
-        //       nodeid: currentNode.id,
-        //       id: currentNode.id,
-        //       userIdList: getOwner(currentNode.owners),
-        //     },
-        //   });
-        //   let nextNode = getNextNode(currentNode.id);
-        //   let [flag, nextNodeId] = nextNodeIsSignNode(nextNode);
-        //   while (flag) {
-        //     currentNode = getNode(nextNode);
-        //     curr.serialNode.push({
-        //       handleNode: {
-        //         nodeid: currentNode.id,
-        //         id: currentNode.id,
-        //         userIdList: getOwner(currentNode.owners),
-        //       },
-        //     });
-        //     nextNode = getNextNode(currentNode.id);
-        //     [flag, nextNodeId] = nextNodeIsSignNode(nextNode);
-        //   }
-        //   currentArr.push(curr);
-        // }
-        // if (targets.length >= 2) {
-        //   let arr = {
-        //     parallelNode: [],
-        //   };
-        //   let ser = {
-        //     serialNode: [],
-        //   };
-        //   ser.serialNode.push({
-        //     handleNode: {
-        //       nodeid: currentNode.id,
-        //       id: currentNode.id,
-        //       userIdList: getOwner(currentNode.owners),
-        //     },
-        //   });
-        //   arr.parallelNode.push(ser);
-        //   currentArr.push(arr);
-        //   currentArr = arr.parallelNode;
-        // }
+        if (targets.length >= 2) {
+          let arr = {
+            parallelNode: [],
+          };
+          let ser = {
+            serialNode: [],
+          };
+          ser.serialNode.push({
+            handleNode: {
+              nodeid: currentNode.id,
+              id: currentNode.id,
+              userIdList: getOwner(currentNode.owners),
+            },
+          });
+          arr.parallelNode.push(ser);
+          currentArr.push(arr);
+          currentArr = arr.parallelNode;
+        }
       }
     };
     console.log(edges.value);
@@ -664,12 +621,90 @@ const transformWorflowNodeToObj = () => {
       traverseNodesByTypeB();
     }
   };
-  traverseNodes(); // debugger // data.forEach(item => { //   if (item.parallelNode) { //     item.forEach(it => { //       if (it.serialNode) { //         it.forEach(i => { //           console.log(i, '所有handle节点') //         }) //       } //     }) //   } // })
-  // state.workflowMap = data; // const nodelist = store.getters['workflow/getNodeList']
+  traverseNodes();
   console.log(data);
-  // let str = JSON.stringify(.workflowMap);
-  // str = str.split(/[(\r\n\s)\r\n\s]+/).join("");
-  // workflowFormula = window.btoa(str);
+  let str = JSON.stringify(data);
+  str = str.split(/[(\r\n\s)\r\n\s]+/).join("");
+  workflowFormula.value = window.btoa(str);
+  console.log(workflowFormula.value);
+  nodes.value = [];
+  edges.value = [];
+  renderNode();
+};
+
+const transformWorflowObjToNode = () => {
+  const getDecode = (str) => {
+    let decode = window.atob(str);
+    return decode;
+  };
+  let obj = JSON.parse(getDecode(workflowFormula.value));
+  // console.log(obj);
+  nodes.value = [{ id: "0", label: "Start" }];
+  edges.value = [];
+  const getOwners = (arr) => {
+    let owners = [];
+    let temp = {};
+    if (!arr) {
+      return [];
+    }
+    arr.forEach((item) => {
+      let objData = data.userInfoList.find((user) => user.id === item);
+      if (objData && !temp[objData.org]) {
+        temp[objData.org] = [];
+      }
+      if (objData) {
+        temp[objData.org].push({
+          title: objData.nickname,
+          key: objData.id,
+        });
+      }
+    });
+    for (let key in temp) {
+      let arr = temp[key];
+      owners.push({
+        title: key,
+        children: arr,
+      });
+    }
+    return owners;
+  };
+  const convert = (data) => {
+    const traverse = (data, parentId) => {
+      data.forEach((subData, index) => {
+        let pid = parentId;
+        if (subData.serialNode) {
+          subData.serialNode.forEach((item) => {
+            let id = item.handleNode.id;
+            nodes.value.push({
+              id,
+              nodeid: id,
+              label: id,
+              owners: getOwners(item.handleNode.userIdList),
+            });
+            edges.value.push({ source: pid, target: id });
+            pid = id;
+          });
+        }
+        if (subData.parallelNode) {
+          let target = subData.parallelNode[0].serialNode[0].handleNode.id;
+          if (index >= 1) {
+            for (let i = index - 1; i <= index; i++) {
+              if (data[index - i].serialNode) {
+                let source = data[index - i].serialNode[0].handleNode.id;
+                edges.value.push({ source, target });
+              }
+            }
+          }
+          traverse(subData.parallelNode, target);
+        }
+      });
+    };
+    traverse(data, "0");
+    edges.value = edges.value.filter((item) => item.target != item.source);
+  };
+
+  convert(obj.parallelNode);
+  renderNode();
 };
 </script>
 
